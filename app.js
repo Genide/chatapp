@@ -7,8 +7,39 @@ var bodyParser = require('body-parser');
 
 var routes = require('./routes/index');
 var users = require('./routes/users');
+var chat = require('./routes/chat');
 
 var app = express();
+var server = require('http').Server(app);
+var io = require('socket.io')(server);
+
+var listOfUsers = [];
+var findSocket = function (socket) {
+  return function (element) {
+    return element.socket === socket;
+  }
+}
+
+server.listen(8080);
+io.on('connection', function(socket) {
+  socket.on('user connected', function(msg) {
+    console.log(msg + ' has connected');
+    listOfUsers.push({name: msg, 'socket': socket});
+
+    socket.broadcast.emit('chat message', {name: 'Server', message: msg + ' has connected'});
+  });
+
+  socket.on('chat message', function(msg){
+    io.emit('chat message', msg);
+  });
+
+  socket.on('disconnect', function() {
+    var user = listOfUsers.find(findSocket(socket));
+    listOfUsers.splice(listOfUsers.indexOf(user), 1);
+    console.log(user.name + ' has disconnected');
+    socket.broadcast.emit('chat message', {name: 'Server', message: user.name + ' has disconnected'});
+  });
+});
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -24,6 +55,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', routes);
 app.use('/users', users);
+app.use('/chat', chat);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
@@ -55,6 +87,5 @@ app.use(function(err, req, res, next) {
     error: {}
   });
 });
-
 
 module.exports = app;
